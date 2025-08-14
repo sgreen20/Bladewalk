@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Bladewalk — VR Sword Prototype (WebXR, A‑Frame)</title>
+
+  <!-- Core libs -->
+  <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/aframe-extras@6.1.1/dist/aframe-extras.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/gh/wmurphyrd/aframe-super-hands-component@master/dist/aframe-super-hands-component.min.js"></script>
+
+  <style>
+    html, body { margin:0; height:100%; background:#090909; }
+    #hud { position:fixed; top:10px; left:10px; color:#fff; font:14px system-ui;
+           background:rgba(0,0,0,.45); padding:8px 10px; border-radius:10px; }
+    #msg { position:fixed; bottom:12px; left:50%; transform:translateX(-50%);
+           color:#ddd; font:13px system-ui; background:rgba(0,0,0,.35);
+           padding:6px 10px; border-radius:8px; }
+    #btnRow { position:fixed; top:10px; right:10px; display:flex; gap:8px; }
+    .btn { background:#1e293b; color:#e6edf3; border:1px solid #334155;
+           padding:6px 10px; border-radius:8px; cursor:pointer; font:13px system-ui; }
+    .btn:active { transform: translateY(1px); }
+  </style>
+</head>
+<body>
+  <div id="hud">
+    <div>Level: <span id="lvl">1</span></div>
+    <div>Player HP: <span id="php">100</span></div>
+    <div>Enemy HP: <span id="ehp">--</span></div>
+  </div>
+  <div id="btnRow">
+    <button class="btn" id="enterVR">Enter VR</button>
+    <button class="btn" id="reset">Reset</button>
+  </div>
+  <div id="msg">Tip: Left trigger = Teleport • Swing the sword • Avoid shoulder spikes • Step through the door when it's safe</div>
+
+  <a-scene background="color:#111" renderer="antialias:true; physicallyCorrectLights:true"
+           vr-mode-ui="enabled:true">
+
+    <!-- Lights -->
+    <a-entity light="type:ambient; intensity:.55"></a-entity>
+    <a-entity light="type:directional; intensity:.9" position="1 3 2"></a-entity>
+
+    <!-- Player rig -->
+    <a-entity id="rig" position="0 1.6 4">
+      <a-entity id="cam" camera look-controls wasd-controls="acceleration:0"></a-entity>
+
+      <!-- Left: teleport ray -->
+      <a-entity id="leftHand"
+                hand-controls="hand:left; handModelStyle: controller"
+                teleport-controls="cameraRig:#rig; button: trigger; collisionEntities:.navmesh; curveShootingSpeed:10"
+                raycaster="objects:.navmesh; showLine:true; lineColor:#33aaff">
+      </a-entity>
+
+      <!-- Right: controller + sword (with trail + haptics) -->
+      <a-entity id="rightHand" hand-controls="hand:right; handModelStyle: controller">
+        <a-entity id="sword"
+                  position="0 -0.02 -0.28" rotation="0 0 0"
+                  sword-kinematics sword-hit sword-trail sword-haptics
+                  aabb-collider="objects:.hurtbox,.spike">
+          <!-- Blade -->
+          <a-box depth="0.028" height="0.82" width="0.055" position="0 0.44 0" color="#e5e7eb"
+                 material="metalness:.8; roughness:.2"></a-box>
+          <!-- Fuller (groove) -->
+          <a-box depth="0.008" height="0.78" width="0.02" position="0 0.44 0.016" color="#bfc3c9"></a-box>
+          <!-- Guard -->
+          <a-box depth="0.03" height="0.06" width="0.18" position="0 0.07 0" color="#111827"></a-box>
+          <!-- Grip -->
+          <a-cylinder radius="0.018" height="0.16" position="0 -0.03 0" color="#374151" rotation="90 0 0"></a-cylinder>
+          <!-- Pommel -->
+          <a-sphere radius="0.02" position="0 -0.11 0" color="#9ca3af"></a-sphere>
+        </a-entity>
+      </a-entity>
+    </a-entity>
+
+    <!-- LEVEL 1 -->
+    <a-entity id="level1">
+      <!-- Skinny platform -->
+      <a-box id="platform" class="navmesh" position="0 0 0" width="1.0" height="0.1" depth="18" color="#2a2a2a"></a-box>
+
+      <!-- Kill volume (fall) -->
+      <a-entity id="kill" position="0 -2 0" geometry="primitive: box; width:30; height:.5; depth:50"
+                material="opacity:0; transparent:true"></a-entity>
+
+      <!-- Enemy (armored brute) -->
+      <a-entity id="enemy1" enemy enemy-health="hp:60" position="0 0 0">
+        <!-- Core hurtbox -->
+        <a-box class="hurtbox body" color="#84d184" width="0.46" height="1.5" depth="0.38" position="0 0.9 -4.6"></a-box>
+        <!-- Helmet / chest plate (visual) -->
+        <a-octahedron color="#3f3f46" radius="0.18" position="0 1.6 -4.6"></a-octahedron>
+        <a-box color="#3f3f46" width="0.6" height="0.3" depth="0.42" position="0 1.15 -4.6"></a-box>
+        <!-- Shoulder spikes (danger) -->
+        <a-cone class="spike" radius-bottom="0.12" radius-top="0.01" height="0.25" color="#ef4444"
+                position="-0.36 1.45 -4.6" rotation="0 0 90"></a-cone>
+        <a-cone class="spike" radius-bottom="0.12" radius-top="0.01" height="0.25" color="#ef4444"
+                position="0.36 1.45 -4.6" rotation="0 0 -90"></a-cone>
+        <!-- Weak spot: neck -->
+        <a-sphere class="hurtbox weak" radius="0.08" color="#a7f3d0" position="0 1.48 -4.6" material="opacity:.9"></a-sphere>
+      </a-entity>
+
+      <!-- Goal door -->
+      <a-entity id="door1" position="0 1 -8.5" door>
+        <a-box width="1.2" height="2.2" depth="0.1" color="#1d4ed8"
+               material="emissive:#3b82f6; emissiveIntensity:.85"></a-box>
+        <a-entity id="door1Trigger" geometry="primitive: box; width:1; height:2; depth:1.5"
+                  position="0 0 0.8" material="opacity:0; transparent:true"></a-entity>
+      </a-entity>
+    </a-entity>
+
+    <!-- LEVEL 2 -->
+    <a-entity id="level2" visible="false">
+      <!-- Slightly wider platform + a gap (jump/teleport timing) -->
+      <a-box class="navmesh" position="0 0 -3" width="1.2" height="0.1" depth="8" color="#3a2a2a"></a-box>
+      <a-box class="navmesh" position="0 0 -12" width="1.2" height="0.1" depth="8" color="#3a2a2a"></a-box>
+      <!-- Hazard ring that sweeps across (visual only) -->
+      <a-torus radius="0.6" radius-tubular="0.03" color="#f59e0b" position="0 1 -8"
+               animation="property: rotation; to: 0 360 0; loop: true; dur: 6000; easing: linear"></a-torus>
+
+      <!-- Two enemies -->
+      <a-entity id="enemy2" enemy enemy-health="hp:50">
+        <a-box class="hurtbox body" color="#84d184" width="0.46" height="1.5" depth="0.38" position="-0.18 0.9 -10.5"></a-box>
+        <a-cone class="spike" radius-bottom="0.12" radius-top="0.01" height="0.25" color="#ef4444"
+                position="-0.48 1.45 -10.5" rotation="0 0 90"></a-cone>
+        <a-sphere class="hurtbox weak" radius="0.08" color="#a7f3d0" position="-0.18 1.48 -10.5"></a-sphere>
+      </a-entity>
+      <a-entity id="enemy3" enemy enemy-health="hp:50">
+        <a-box class="hurtbox body" color="#84d184" width="0.46" height="1.5" depth="0.38" position="0.18 0.9 -13.5"></a-box>
+        <a-cone class="spike" radius-bottom="0.12" radius-top="0.01" height="0.25" color="#ef4444"
+                position="0.48 1.45 -13.5" rotation="0 0 -90"></a-cone>
+        <a-sphere class="hurtbox weak" radius="0.08" color="#a7f3d0" position="0.18 1.48 -13.5"></a-sphere>
+      </a-entity>
+
+      <!-- Exit door -->
+      <a-entity id="door2" position="0 1 -16.5" door>
+        <a-box width="1.2" height="2.2" depth="0.1" color="#15803d"
+               material="emissive:#22c55e; emissiveIntensity:.85"></a-box>
+        <a-entity id="door2Trigger" geometry="primitive: box; width:1; height:2; depth:1.5"
+                  position="0 0 0.8" material="opacity:0; transparent:true"></a-entity>
+      </a-entity>
+    </a-entity>
+
+    <!-- ===== GAME LOGIC & EFFECTS ===== -->
+    <script>
+      // ---------- UI helpers ----------
+      const hudPHP = document.getElementById('php');
+      const hudEHP = document.getElementById('ehp');
+      const lvl = document.getElementById('lvl');
+      const msg = document.getElementById('msg');
+
+      let playerHP = 100;
+      function setEHP(v){ hudEHP.textContent = (v==null?'--':v); }
+      function damagePlayer(n, why=''){
+        playerHP = Math.max(0, playerHP - n);
+        hudPHP.textContent = playerHP;
+        if (why) say(`${-n} HP (${why})`);
+        play('ouch');
+        vibrateRight(0.3, 0.2);
+        if (playerHP <= 0) { say("You fell... resetting."); resetAll(); }
+      }
+      function say(t){ msg.textContent = t; }
+
+      // ---------- Minimal audio (embedded Data URIs) ----------
+      // Tiny synthesized WAVs (whoosh, hit, crit, spike, door, ouch)
+      const audio = {};
+      function mkBeep(name, freq=440, dur=0.1, vol=0.2){
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        audio.ctx = audio.ctx || new AudioCtx();
+        const o = audio.ctx.createOscillator();
+        const g = audio.ctx.createGain();
+        o.type = 'triangle';
+        o.frequency.value = freq;
+        g.gain.value = vol;
+        o.connect(g).connect(audio.ctx.destination);
+        o.start();
+        o.stop(audio.ctx.currentTime + dur);
+      }
+      function play(tag){
+        // Simple mapping using oscillator beeps for portability
+        if (tag==='swing') mkBeep('s', 520, 0.04, 0.08);
+        if (tag==='hit') mkBeep('h', 220, 0.06, 0.12);
+        if (tag==='crit') mkBeep('c', 660, 0.08, 0.15);
+        if (tag==='spike') mkBeep('p', 120, 0.06, 0.15);
+        if (tag==='door') mkBeep('d', 880, 0.12, 0.1);
+        if (tag==='ouch') mkBeep('o', 160, 0.08, 0.18);
+      }
+
+      // ---------- Haptics (Quest controllers) ----------
+      function vibrateRight(intensity=0.5, seconds=0.05){
+        const right = navigator.getGamepads ?
+          Array.from(navigator.getGamepads()).find(g=>g && /right/i.test(g.hand||'')) : null;
+        if (!right || !right.hapticActuators || !right.hapticActuators[0]) return;
+        try { right.hapticActuators[0].pulse(intensity, seconds*1000); } catch(e){}
+      }
+
+      // ---------- Utility ----------
+      function flash(el, c){
+        const old = el.getAttribute('color') || '#fff';
+        el.setAttribute('color', c);
+        setTimeout(()=> el.setAttribute('color', old), 140);
+      }
+
+      // ---------- Components ----------
+      // Track head height to detect falls
+      AFRAME.registerComponent('death-check', {
+        tick: function(){
+          const head = document.getElementById('cam').object3D;
+          const p = new THREE.Vector3(); head.getWorldPosition(p);
+          if (p.y < -0.5) damagePlayer(999, 'Fall');
+        }
+      });
+      document.querySelector('#kill').setAttribute('death-check','');
+
+      // Sword velocity + trail + whoosh
+      AFRAME.registerComponent('sword-kinematics', {
+        init(){
+          this.prev = new THREE.Vector3(); this.cur = new THREE.Vector3();
+          this.lastPlay = 0; this.threshold = 1.0;
+          this.el.object3D.getWorldPosition(this.prev);
+        },
+        tick(t,dt){
+          this.el.object3D.getWorldPosition(this.cur);
+          const v = this.cur.clone().sub(this.prev).multiplyScalar(1000/Math.max(1,dt)).length();
+          this.el.dataset.v = v.toFixed(3);
+          if (v>this.threshold && (t - this.lastPlay)>180){
+            play('swing'); this.lastPlay = t;
+          }
+          this.prev.copy(this.cur);
+        }
+      });
+      AFRAME.registerComponent('sword-trail', {
+        init(){
+          const geo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0), new THREE.Vector3(0,0.8,0)]);
+          const mat = new THREE.LineBasicMaterial({color:0x88ccff, transparent:true, opacity:0.0});
+          this.line = new THREE.Line(geo, mat);
+          this.el.object3D.add(this.line);
+        },
+        tick(t,dt){
+          const v = parseFloat(this.el.dataset.v||'0');
+          const alpha = Math.min(0.6, Math.max(0, (v-0.6)/2.0));
+          this.line.material.opacity = alpha;
+        }
+      });
+      AFRAME.registerComponent('sword-haptics', {
+        init(){ this.last = 0; },
+        tick(t){
+          const v = parseFloat(this.el.dataset.v||'0');
+          if (v>2.2 && t-this.last>220){ vibrateRight(0.1, 0.02); this.last=t; }
+        }
+      });
+
+      // Enemy health + UI
+      AFRAME.registerComponent('enemy-health', {
+        schema:{hp:{default:50}},
+        init(){ this.hp = this.data.hp; setEHP(this.hp); },
+        damage(n){
+          this.hp = Math.max(0, this.hp - n);
+          setEHP(this.hp);
+          if (this.hp<=0) this.el.emit('dead');
+        }
+      });
+
+      // Enemy simple AI (shuffles along Z, bumps near player)
+      AFRAME.registerComponent('enemy', {
+        init(){
+          this.body = this.el.querySelector('.body');
+          this.speed = 0.6; this.cool=0; this.alive=true;
+          this.el.addEventListener('dead', ()=>{
+            if (!this.alive) return;
+            this.alive=false; say("Enemy down. Proceed.");
+            const b = this.body;
+            b.setAttribute('animation__fall','property: position; to: 0 -5 ' + b.getAttribute('position').z + '; dur:1100; easing:easeInQuad');
+            setTimeout(()=>{
+              this.el.querySelectorAll('.spike,.weak').forEach(n=>n.setAttribute('visible',false));
+              b.setAttribute('visible',false);
+            }, 1200);
+          });
+        },
+        tick(t,dt){
+          if(!this.alive) return;
+          const head = document.getElementById('cam').object3D;
+          const hp = new THREE.Vector3(); head.getWorldPosition(hp);
+          const bp = this.body.object3D.position;
+          const dz = Math.sign(hp.z - bp.z) * (this.speed * dt/1000);
+          bp.z = THREE.MathUtils.clamp(bp.z + dz, -18, 6);
+          const dist = Math.abs(hp.z - bp.z);
+          if(dist<0.85 && this.cool<=0){ damagePlayer(15,'Shoulder bump'); this.cool=1400; }
+          this.cool -= dt;
+        }
+      });
+
+      // Sword collision responses (hurtboxes vs spikes)
+      AFRAME.registerComponent('sword-hit', {
+        init(){
+          this.el.addEventListener('hitstart', (e)=>{
+            const v = parseFloat(this.el.dataset.v||'0');
+            (e.detail.els||[]).forEach(t=>{
+              if (t.classList.contains('hurtbox') && v>=0.7){
+                const enemy = t.closest('[enemy]') || document.getElementById('enemy1') || document.getElementById('enemy2') || document.getElementById('enemy3');
+                const eh = enemy && enemy.components['enemy-health'];
+                const dmg = 10 + (t.classList.contains('weak')?10:0);
+                if (eh){ eh.damage(dmg); flash(t, t.classList.contains('weak') ? '#8cff8c' : '#cfc'); }
+                if (t.classList.contains('weak')) { say("Critical!"); play('crit'); vibrateRight(0.5, 0.03); }
+                else { say("Hit"); play('hit'); vibrateRight(0.25, 0.02); }
+              }
+              if (t.classList.contains('spike') && v>=0.5){
+                damagePlayer(10,'Spikes'); flash(t,'#f55'); play('spike');
+              }
+            });
+          });
+        }
+      });
+
+      // Door logic (requires local enemies dead)
+      AFRAME.registerComponent('door', {
+        init(){
+          const trig = this.el.querySelector('[geometry]');
+          trig.addEventListener('mouseenter', ()=>{
+            const alive = Array.from(document.querySelectorAll('[enemy-health]'))
+              .some(e => e.components['enemy-health'] && e.components['enemy-health'].hp>0 && e.closest('[visible="true"]'));
+            if (alive){ say("The door resists... defeat the enemies."); return; }
+            play('door'); nextLevel();
+          });
+        }
+      });
+
+      // Platform guard: punish if near edges
+      AFRAME.registerComponent('platform-guard', {
+        tick(){
+          const rig = document.getElementById('rig');
+          const x = rig.object3D.position.x;
+          if (Math.abs(x)>0.6){
+            damagePlayer(10,'Near the edge');
+            rig.object3D.position.x = THREE.MathUtils.clamp(x,-0.4,0.4);
+          }
+        }
+      });
+      document.querySelector('#platform').setAttribute('platform-guard','');
+
+      // ---------- Level switching & reset ----------
+      function nextLevel(){
+        const l1 = document.getElementById('level1');
+        const l2 = document.getElementById('level2');
+        if (l1.getAttribute('visible')!==false){
+          l1.setAttribute('visible', false);
+          l2.setAttribute('visible', true);
+          lvl.textContent = '2'; setEHP('--');
+          say('Level 2. Two foes ahead.');
+        } else {
+          say('Demo end.'); // Could add Level 3 hook
+        }
+      }
+      function resetAll(){
+        // Reset UI
+        playerHP = 100; hudPHP.textContent = playerHP; lvl.textContent = '1'; setEHP('--'); say('Reset.');
+        // Reset player pos
+        document.getElementById('rig').setAttribute('position', '0 1.6 4');
+        // Reset enemies
+        ['enemy1','enemy2','enemy3'].forEach((id, i)=>{
+          const e = document.getElementById(id);
+          if (!e) return;
+          const eh = e.components['enemy-health']; if (eh){ eh.hp = (i===0?60:50); }
+          const body = e.querySelector('.body');
+          if (body){
+            const z = (i===0?-4.6:(i===1?-10.5:-13.5));
+            body.setAttribute('position',{x:body.getAttribute('position').x||0,y:0.9,z:z});
+            body.setAttribute('visible', true);
+          }
+          e.querySelectorAll('.spike,.weak').forEach(n=>n.setAttribute('visible', true));
+          if (e.components['enemy']) e.components['enemy'].alive = true;
+        });
+        // Reset levels
+        document.getElementById('level1').setAttribute('visible', true);
+        document.getElementById('level2').setAttribute('visible', false);
+      }
+
+      // Buttons
+      document.getElementById('reset').addEventListener('click', resetAll);
+      document.getElementById('enterVR').addEventListener('click', ()=>{
+        const scene = document.querySelector('a-scene');
+        if (scene && scene.enterVR) scene.enterVR();
+      });
+    </script>
+  </a-scene>
+</body>
+</html>
